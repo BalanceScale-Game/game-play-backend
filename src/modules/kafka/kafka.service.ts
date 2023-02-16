@@ -1,9 +1,16 @@
-import { OnModuleDestroy, OnModuleInit, Injectable } from '@nestjs/common';
+import {
+  OnModuleDestroy,
+  OnModuleInit,
+  Injectable,
+  UseFilters,
+} from '@nestjs/common';
 import { Client, ClientKafka, Transport } from '@nestjs/microservices';
 import { Observable, lastValueFrom } from 'rxjs';
 import { Topic } from './dto/types';
+import { AllExceptionsFilter } from 'src/configs/decorators/catchError';
 
 @Injectable()
+@UseFilters(AllExceptionsFilter)
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
   @Client({
     transport: Transport.KAFKA,
