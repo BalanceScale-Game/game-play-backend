@@ -9,25 +9,39 @@ import {
 } from '@nestjs/websockets';
 import { parse } from 'cookie';
 import { Server, Socket } from 'socket.io';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  UseFilters,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import { SocketService } from './socket.service';
 import { GamePlayService } from '../game-play/gamePlay.service';
+import { WsExceptionFilter } from 'src/configs/decorators/catchWsError';
+import { RoomManagerService } from '../game-play/roomManager.service';
+import { AllExceptionsFilter } from 'src/configs/decorators/catchError';
+import { PlayGameMessageDto, StartGameMessageDto } from './dto';
 
+@UseFilters(WsExceptionFilter)
+@UseFilters(AllExceptionsFilter)
 @WebSocketGateway({
   cors: {
     origin: '*',
   },
 })
-export class SocketGateway implements OnGatewayConnection, OnGatewayInit {
+export class SocketGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer()
   server: Server;
 
-  public gamePlayService: GamePlayService;
+  constructor(
+    private readonly socketService: SocketService,
+    private readonly gamePlayService: GamePlayService,
+    private readonly roomManagerService: RoomManagerService,
+  ) {}
 
-  constructor(private readonly socketService: SocketService) {}
-
-  afterInit(server: Server) {
-    this.gamePlayService = new GamePlayService(server);
+  afterInit(server: any) {
+    this.roomManagerService.initRoomManager(server);
   }
 
   async handleConnection(socket: Socket) {
@@ -36,23 +50,13 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayInit {
 
     const user = await this.socketService.getUserByAuthToken(Authentication);
 
-    this.gamePlayService.connection(socket, user.userId);
-  }
-
-  @SubscribeMessage('start_game')
-  startGame(@ConnectedSocket() client: Socket) {
-    this.gamePlayService.startGame(client);
+    this.roomManagerService.connection(socket, user.userId);
   }
 
   @SubscribeMessage('create_room')
   async createRoom(@ConnectedSocket() client: Socket) {
     try {
-      const userId = this.gamePlayService.getUserId(client);
-
-      const room: any = await this.socketService.createGameRoom(userId);
-      console.log({ room });
-
-      this.gamePlayService.initGameRoom(client, room?._id, userId);
+      this.roomManagerService.createGameRoom(client);
     } catch (ex) {
       console.log(ex);
       throw new HttpException(
@@ -68,7 +72,36 @@ export class SocketGateway implements OnGatewayConnection, OnGatewayInit {
     @MessageBody() roomId: string,
   ) {
     try {
-      this.gamePlayService.joinRoom(client, roomId);
+      this.roomManagerService.joinRoom(client, roomId);
+    } catch (ex) {
+      console.log(ex);
+      throw new HttpException(
+        'Something went wrong',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @SubscribeMessage('start_game')
+  startGame(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() message: StartGameMessageDto,
+  ) {
+    const { roomId } = message;
+
+    this.roomManagerService.startGame(client, roomId);
+  }
+
+  @UsePipes(new ValidationPipe())
+  @SubscribeMessage('choose_number')
+  async playGame(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() message: PlayGameMessageDto,
+  ) {
+    try {
+      console.log({ message });
+      const { type, roomId, chosenNumber } = message;
+      this.roomManagerService.chooseNumber(client, roomId, chosenNumber);
     } catch (ex) {
       console.log(ex);
       throw new HttpException(
