@@ -88,7 +88,7 @@ export class RoomManagerService {
       });
 
       await sleep(3000);
-      const result = room.calculateGameResult();
+      const result = room.getFinalGameResult();
 
       this.server.sockets.to(roomId).emit('receive_message', {
         type: 'game_state',

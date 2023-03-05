@@ -26,7 +26,7 @@ export class Player {
     return this.score;
   }
 
-  decreaseScore() {
-    this.score--;
+  decreaseScore(dropPoint: number) {
+    this.score = this.score - dropPoint;
   }
 }

@@ -19,7 +19,6 @@ export class SocketService {
 
   async getUserByAuthToken(token: string) {
     try {
-      console.log('99999');
       const user: any = await this.kafkaService.sendKafkaMessageWithoutKey(
         'auth.get.user',
         { token },
